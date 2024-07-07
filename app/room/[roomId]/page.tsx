@@ -100,7 +100,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
-          video: false,
+          video: true,
           audio: true,
         });
         setStream(localStream);
