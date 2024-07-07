@@ -31,12 +31,15 @@ export default function Room({ params }: { params: { roomId: string } }) {
   const supabase = createClient();
 
   useEffect(() => {
+
     const setupChannel = async () => {
       const {
         data: { user },
+        error,
       } = await supabase.auth.getUser();
 
-      if (!user) {
+      if (error || !user) {
+        console.error("Authentication error:", error);
         router.push("/login");
         return;
       }
@@ -55,7 +58,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
 
       roomChannel
         .on("presence", { event: "sync" }, () => {
-          const newState = roomChannel.presenceState();
+          const newState = roomChannel!.presenceState();
           const usersInRoom = Object.entries(newState).map(([key, value]) => ({
             key,
             name: (value as any)[0]?.name || "Anonymous",
@@ -127,14 +130,12 @@ export default function Room({ params }: { params: { roomId: string } }) {
   const sendMessage = () => {
     if (inputMessage.trim() !== "" && channel) {
       const newMessage = {
-        userId: username, // or use the actual user's name/id
+        userId: username,
         text: inputMessage,
       };
 
-      // Immediately add the message to the local state
       setMessages((prevMessages) => [...prevMessages, newMessage]);
 
-      // Send the message through the channel
       channel.send({
         type: "broadcast",
         event: "message",
