@@ -14,15 +14,10 @@ import ControlBar from "@/components/room/ControlBar";
 import Peer, { MediaConnection } from "peerjs";
 
 export default function Room({ params }: { params: { roomId: string } }) {
-  const router = useRouter();
+  const [userCount, setUserCount] = useState(1);
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
-  const [users, setUsers] = useState<{ key: string; name: string }[]>([]);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [messages, setMessages] = useState<{ userId: string; text: string }[]>(
-    []
-  );
-  const [inputMessage, setInputMessage] = useState("");
 
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const peersRef = useRef<{ [id: string]: MediaConnection }>({});
   const videoElementsRef = useRef<{ [id: string]: HTMLDivElement }>({});
@@ -30,6 +25,12 @@ export default function Room({ params }: { params: { roomId: string } }) {
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [isSharingScreen, setIsSharingScreen] = useState(false);
+
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [messages, setMessages] = useState<{ userId: string; text: string }[]>(
+    []
+  );
+  const [inputMessage, setInputMessage] = useState("");
 
   const supabase = createClient();
 
@@ -62,24 +63,18 @@ export default function Room({ params }: { params: { roomId: string } }) {
             key,
             name: (value as any)[0]?.name || "Anonymous",
           }));
-          setUsers(usersInRoom);
+          setUserCount(usersInRoom.length);
         })
         .on("presence", { event: "join" }, ({ key, newPresences }) => {
-          setUsers((prevUsers) => {
-            const newUser = {
-              key,
-              name: (newPresences as any)[0]?.name || "Anonymous",
-            };
-            const updatedUsers = [...prevUsers, newUser];
-            toast.success(`${newUser.name} joined the room`);
-            return updatedUsers;
-          });
+          const newUser = {
+            key,
+            name: (newPresences as any)[0]?.name || "Anonymous",
+          };
+          toast.success(`${newUser.name} joined the room`);
+          setUserCount((prev) => prev + 1);
         })
         .on("presence", { event: "leave" }, ({ key }) => {
-          setUsers((prevUsers) => {
-            const leavingUser = prevUsers.find((user) => user.key === key);
-            return prevUsers.filter((user) => user.key !== key);
-          });
+          setUserCount((prev) => prev - 1);
         })
         .on("broadcast", { event: "message" }, ({ payload }) => {
           setMessages((prevMessages) => [...prevMessages, payload]);
@@ -95,44 +90,71 @@ export default function Room({ params }: { params: { roomId: string } }) {
 
       setChannel(roomChannel);
 
-      // Initialize PeerJS
-      const peer = new Peer(userKey);
+      const peer = new Peer();
 
-      peer.on("open", (id) => {
-        console.log("PeerJS ID:", id);
-      });
-
-      peer.on("call", (call) => {
-        // Answer incoming call
-        if (stream) call.answer(stream);
-        call.on("stream", (remoteStream) => {
-          addVideoStream(remoteStream, call.peer, "Remote User");
+      peer.on("open", (userId) => {
+        roomChannel.send({
+          type: "broadcast",
+          event: "user-connected",
+          payload: { userId, username },
         });
+
+        navigator.mediaDevices
+          .getUserMedia({
+            video: false,
+            audio: true,
+          })
+          .then((stream) => {
+            setStream(stream);
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+              videoRef.current.play();
+            }
+
+            stream.getVideoTracks().forEach((track) => (track.enabled = false));
+
+            peer.on("call", (call) => {
+              call.answer(stream);
+              call.on("stream", (userVideoStream) => {
+                addVideoStream(userVideoStream, call.peer, "Remote User");
+              });
+            });
+
+            roomChannel.on(
+              "broadcast",
+              { event: "user-connected" },
+              ({ payload }) => {
+                if (payload.userId !== peer.id) {
+                  console.log(`User connected: ${payload.userId}`);
+                  connectToNewUser(
+                    payload.userId,
+                    payload.username,
+                    peer,
+                    stream
+                  );
+                }
+              }
+            );
+          });
       });
 
-      // Get user media and connect to new users
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.play();
-      }
-
-      roomChannel.on("presence", { event: "join" }, ({ key, newPresences }) => {
-        connectToNewUser(
-          key,
-          (newPresences as any)[0]?.name || "Anonymous",
-          peer,
-          mediaStream
-        );
-      });
+      roomChannel.on(
+        "broadcast",
+        { event: "user-disconnected" },
+        ({ payload }) => {
+          console.log(`User disconnected: ${payload.userId}`);
+          if (peersRef.current[payload.userId])
+            peersRef.current[payload.userId].close();
+          if (videoElementsRef.current[payload.userId]) {
+            videoElementsRef.current[payload.userId].remove();
+            delete videoElementsRef.current[payload.userId];
+          }
+        }
+      );
 
       return () => {
         roomChannel.unsubscribe();
-        peer.destroy();
+        peer.disconnect();
       };
     };
 
@@ -224,7 +246,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
   const sendMessage = () => {
     if (inputMessage.trim() !== "" && channel) {
       const newMessage = {
-        userId: users.find((user) => user.key === user.name) || "Anonymous",
+        userId: "Anonymous",
         text: inputMessage,
       };
       channel.send({
@@ -292,7 +314,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
     <div className="flex flex-col justify-center items-center p-10 gap-10 w-full">
       <Toaster />
       <h1 className="text-2xl mb-4">Room: {params.roomId}</h1>
-      <p className="mb-4">People in room: {users.length}</p>
+      <p className="mb-4">People in room: {userCount}</p>
 
       <VideoGrid
         isSharingScreen={isSharingScreen}

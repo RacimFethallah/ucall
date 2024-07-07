@@ -5,9 +5,10 @@ interface User {
   username: string;
   email: string;
 }
+
 interface VideoGridProps {
   isSharingScreen: boolean;
-  videoRef: any;
+  videoRef: React.RefObject<HTMLVideoElement>;
   user: string | null;
 }
 
