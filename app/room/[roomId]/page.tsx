@@ -72,10 +72,6 @@ export default function Room({ params }: { params: { roomId: string } }) {
             };
             const updatedUsers = [...prevUsers, newUser];
             toast.success(`${newUser.name} joined the room`);
-
-            // Add a placeholder video element for the new user
-            // addVideoStream(null, key, newUser.name);
-
             return updatedUsers;
           });
         })
@@ -99,64 +95,44 @@ export default function Room({ params }: { params: { roomId: string } }) {
 
       setChannel(roomChannel);
 
-      // Set up PeerJS
+      // Initialize PeerJS
       const peer = new Peer(userKey);
 
-      peer.on("open", (peerId) => {
-        roomChannel.send({
-          type: "broadcast",
-          event: "user-connected",
-          payload: { userId: peerId, username },
-        });
+      peer.on("open", (id) => {
+        console.log("PeerJS ID:", id);
+      });
 
-        roomChannel.on(
-          "broadcast",
-          { event: "user-connected" },
-          ({ payload }) => {
-            if (payload.userId !== peer.id && stream) {
-              connectToNewUser(payload.userId, payload.username, peer, stream);
-            }
-          }
+      peer.on("call", (call) => {
+        // Answer incoming call
+        if (stream) call.answer(stream);
+        call.on("stream", (remoteStream) => {
+          addVideoStream(remoteStream, call.peer, "Remote User");
+        });
+      });
+
+      // Get user media and connect to new users
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      setStream(mediaStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+        videoRef.current.play();
+      }
+
+      roomChannel.on("presence", { event: "join" }, ({ key, newPresences }) => {
+        connectToNewUser(
+          key,
+          (newPresences as any)[0]?.name || "Anonymous",
+          peer,
+          mediaStream
         );
       });
 
-      navigator.mediaDevices
-        .getUserMedia({ video: true, audio: true })
-        .then((stream) => {
-          setStream(stream);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.play();
-          }
-
-          stream.getVideoTracks().forEach((track) => (track.enabled = false));
-
-          peer.on("call", (call) => {
-            call.answer(stream);
-            call.on("stream", (userVideoStream) => {
-              addVideoStream(userVideoStream, call.peer, "Remote User");
-            });
-          });
-
-          roomChannel.on(
-            "broadcast",
-            { event: "user-connected" },
-            ({ payload }) => {
-              if (payload.userId !== peer.id && stream) {
-                connectToNewUser(
-                  payload.userId,
-                  payload.username,
-                  peer,
-                  stream
-                );
-              }
-            }
-          );
-        });
-
       return () => {
         roomChannel.unsubscribe();
-        peer.disconnect();
+        peer.destroy();
       };
     };
 
