@@ -31,7 +31,6 @@ export default function Room({ params }: { params: { roomId: string } }) {
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [isSharingScreen, setIsSharingScreen] = useState(false);
 
-
   const supabase = createClient();
 
   useEffect(() => {
@@ -63,11 +62,6 @@ export default function Room({ params }: { params: { roomId: string } }) {
             key,
             name: (value as any)[0]?.name || "Anonymous",
           }));
-          //   if (usersInRoom.length > 2) {
-          //     toast.error("Room is full. Redirecting to home...");
-          //     router.push("/");
-          //     return;
-          //   }
           setUsers(usersInRoom);
         })
         .on("presence", { event: "join" }, ({ key, newPresences }) => {
@@ -169,6 +163,15 @@ export default function Room({ params }: { params: { roomId: string } }) {
     stream: MediaStream
   ) => {
     const call = peer.call(userId, stream);
+    if (!call) {
+      console.error(`Failed to establish call with user ${userId}`);
+      return;
+    }
+
+    call.on("stream", (userVideoStream) => {
+      addVideoStream(userVideoStream, userId, username);
+    });
+
     call.on("stream", (userVideoStream) => {
       addVideoStream(userVideoStream, userId, username);
     });
