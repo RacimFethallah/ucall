@@ -188,7 +188,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
   };
 
   const addVideoStream = (
-    stream: MediaStream | null,
+    stream: MediaStream,
     userId: string,
     username: string
   ) => {
@@ -196,33 +196,22 @@ export default function Room({ params }: { params: { roomId: string } }) {
       return;
     }
 
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    video.addEventListener("loadedmetadata", () => {
+      video.play();
+    });
+
     const videoGrid = document.getElementById("video-grid");
     const videoContainer = document.createElement("div");
-    videoContainer.id = `video-container-${userId}`;
+    videoContainer.id = "video-container";
     videoContainer.className =
       "video-container shadow-2xl bg-gray-700 border border-gray-300 p-3 rounded-xl flex flex-col justify-center items-center gap-2";
-
     const span = document.createElement("span");
     span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
-    span.innerText = username || "Remote User";
+    span.innerText = username || "You";
     videoContainer.append(span);
-
-    if (stream) {
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.addEventListener("loadedmetadata", () => {
-        video.play();
-      });
-      videoContainer.append(video);
-    } else {
-      // Add a placeholder for the video
-      const placeholder = document.createElement("div");
-      placeholder.className =
-        "w-64 h-48 bg-gray-600 flex items-center justify-center";
-      placeholder.innerText = "Video not available";
-      videoContainer.append(placeholder);
-    }
-
+    videoContainer.append(video);
     videoGrid?.append(videoContainer);
     videoElementsRef.current[userId] = videoContainer;
   };
