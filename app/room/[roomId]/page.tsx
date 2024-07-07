@@ -62,25 +62,20 @@ export default function Room({ params }: { params: { roomId: string } }) {
             key,
             name: (value as any)[0]?.name || "Anonymous",
           }));
-          if (usersInRoom.length > 2) {
-            toast.error("Room is full. Redirecting to home...");
-            router.push("/");
-            return;
-          }
           setUsers(usersInRoom);
         })
         .on("presence", { event: "join" }, ({ key, newPresences }) => {
           setUsers((prevUsers) => {
-            if (prevUsers.length >= 2) {
-              toast.error("Room is full");
-              return prevUsers;
-            }
             const newUser = {
               key,
               name: (newPresences as any)[0]?.name || "Anonymous",
             };
             const updatedUsers = [...prevUsers, newUser];
             toast.success(`${newUser.name} joined the room`);
+
+            // Add a placeholder video element for the new user
+            // addVideoStream(null, key, newUser.name);
+
             return updatedUsers;
           });
         })
@@ -113,6 +108,16 @@ export default function Room({ params }: { params: { roomId: string } }) {
           event: "user-connected",
           payload: { userId: peerId, username },
         });
+
+        roomChannel.on(
+          "broadcast",
+          { event: "user-connected" },
+          ({ payload }) => {
+            if (payload.userId !== peer.id && stream) {
+              connectToNewUser(payload.userId, payload.username, peer, stream);
+            }
+          }
+        );
       });
 
       navigator.mediaDevices
@@ -137,7 +142,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
             "broadcast",
             { event: "user-connected" },
             ({ payload }) => {
-              if (payload.userId !== peer.id) {
+              if (payload.userId !== peer.id && stream) {
                 connectToNewUser(
                   payload.userId,
                   payload.username,
@@ -150,9 +155,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
         });
 
       return () => {
-        if (channel) {
-          channel.unsubscribe();
-        }
+        roomChannel.unsubscribe();
         peer.disconnect();
       };
     };
@@ -185,7 +188,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
   };
 
   const addVideoStream = (
-    stream: MediaStream,
+    stream: MediaStream | null,
     userId: string,
     username: string
   ) => {
@@ -193,22 +196,33 @@ export default function Room({ params }: { params: { roomId: string } }) {
       return;
     }
 
-    const video = document.createElement("video");
-    video.srcObject = stream;
-    video.addEventListener("loadedmetadata", () => {
-      video.play();
-    });
-
     const videoGrid = document.getElementById("video-grid");
     const videoContainer = document.createElement("div");
-    videoContainer.id = "video-container";
+    videoContainer.id = `video-container-${userId}`;
     videoContainer.className =
       "video-container shadow-2xl bg-gray-700 border border-gray-300 p-3 rounded-xl flex flex-col justify-center items-center gap-2";
+
     const span = document.createElement("span");
     span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
     span.innerText = username || "Remote User";
     videoContainer.append(span);
-    videoContainer.append(video);
+
+    if (stream) {
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      video.addEventListener("loadedmetadata", () => {
+        video.play();
+      });
+      videoContainer.append(video);
+    } else {
+      // Add a placeholder for the video
+      const placeholder = document.createElement("div");
+      placeholder.className =
+        "w-64 h-48 bg-gray-600 flex items-center justify-center";
+      placeholder.innerText = "Video not available";
+      videoContainer.append(placeholder);
+    }
+
     videoGrid?.append(videoContainer);
     videoElementsRef.current[userId] = videoContainer;
   };
@@ -287,10 +301,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
 
   const stopScreenShare = () => {
     navigator.mediaDevices
-      .getUserMedia({
-        video: true,
-        audio: true,
-      })
+      .getUserMedia({ video: true, audio: true })
       .then((webcamStream) => {
         setIsSharingScreen(false);
         if (videoRef.current) {
