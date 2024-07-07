@@ -34,7 +34,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
   const supabase = createClient();
 
   useEffect(() => {
-    const setupChannel = async () => {
+    const setupChannelAndPeer = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -43,7 +43,8 @@ export default function Room({ params }: { params: { roomId: string } }) {
         router.push("/login");
         return;
       }
-      const userKey = user?.id || `anonymous-${Date.now()}`;
+
+      const userKey = user.id;
       const username = user.user_metadata.username || user.email || "Anonymous";
 
       const roomChannel = supabase.channel(`room_${params.roomId}`, {
@@ -57,11 +58,15 @@ export default function Room({ params }: { params: { roomId: string } }) {
       roomChannel
         .on("presence", { event: "sync" }, () => {
           const newState = roomChannel.presenceState();
-          console.log("sync", newState);
           const usersInRoom = Object.entries(newState).map(([key, value]) => ({
             key,
             name: (value as any)[0]?.name || "Anonymous",
           }));
+          if (usersInRoom.length > 2) {
+            toast.error("Room is full. Redirecting to home...");
+            router.push("/");
+            return;
+          }
           setUsers(usersInRoom);
         })
         .on("presence", { event: "join" }, ({ key, newPresences }) => {
@@ -82,7 +87,6 @@ export default function Room({ params }: { params: { roomId: string } }) {
         .on("presence", { event: "leave" }, ({ key }) => {
           setUsers((prevUsers) => {
             const leavingUser = prevUsers.find((user) => user.key === key);
-            // toast.error(`${leavingUser?.name || "A player"} left the room`);
             return prevUsers.filter((user) => user.key !== key);
           });
         })
@@ -153,7 +157,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
       };
     };
 
-    setupChannel();
+    setupChannelAndPeer();
   }, [params.roomId]);
 
   const connectToNewUser = (
@@ -163,15 +167,6 @@ export default function Room({ params }: { params: { roomId: string } }) {
     stream: MediaStream
   ) => {
     const call = peer.call(userId, stream);
-    if (!call) {
-      console.error(`Failed to establish call with user ${userId}`);
-      return;
-    }
-
-    call.on("stream", (userVideoStream) => {
-      addVideoStream(userVideoStream, userId, username);
-    });
-
     call.on("stream", (userVideoStream) => {
       addVideoStream(userVideoStream, userId, username);
     });
