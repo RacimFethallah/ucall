@@ -118,7 +118,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
       });
 
       navigator.mediaDevices
-        .getUserMedia({ video: false, audio: true })
+        .getUserMedia({ video: true, audio: true })
         .then((stream) => {
           setStream(stream);
           if (videoRef.current) {
