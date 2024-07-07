@@ -30,7 +30,7 @@ export default function VideoGrid({
           ref={videoRef}
           muted
           className={`rounded-lg ${
-            isSharingScreen ? "w-full" : "w-64 h-48"
+            isSharingScreen ? "w-full" : ""
           } object-cover`}
         />
       </div>

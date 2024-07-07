@@ -109,6 +109,10 @@ export default function Room({ params }: { params: { roomId: string } }) {
           videoRef.current.play();
         }
 
+        localStream
+          .getVideoTracks()
+          .forEach((track) => (track.enabled = false));
+
         peer.on("call", (call) => {
           call.answer(localStream);
           call.on("stream", (userVideoStream) => {
@@ -221,6 +225,61 @@ export default function Room({ params }: { params: { roomId: string } }) {
     setIsChatOpen(!isChatOpen);
   };
 
+  const startScreenShare = () => {
+    navigator.mediaDevices
+      .getDisplayMedia({ video: true })
+      .then((screenStream) => {
+        setIsSharingScreen(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = screenStream;
+          videoRef.current.play();
+        }
+        setStream(screenStream);
+
+        const videoTrack = screenStream.getVideoTracks()[0];
+        videoTrack.onended = () => {
+          stopScreenShare();
+        };
+
+        for (let userId in peersRef.current) {
+          const call = peersRef.current[userId];
+          const sender = call.peerConnection
+            .getSenders()
+            .find((s) => s.track?.kind === "video");
+          if (sender) {
+            sender.replaceTrack(videoTrack);
+          }
+        }
+      });
+  };
+
+  const stopScreenShare = () => {
+    navigator.mediaDevices
+      .getUserMedia({
+        video: true,
+        audio: true,
+      })
+      .then((webcamStream) => {
+        setIsSharingScreen(false);
+        if (videoRef.current) {
+          videoRef.current.srcObject = webcamStream;
+          videoRef.current.play();
+        }
+        setStream(webcamStream);
+
+        const videoTrack = webcamStream.getVideoTracks()[0];
+        for (let userId in peersRef.current) {
+          const call = peersRef.current[userId];
+          const sender = call.peerConnection
+            .getSenders()
+            .find((s) => s.track?.kind === "video");
+          if (sender) {
+            sender.replaceTrack(videoTrack);
+          }
+        }
+      });
+  };
+
   const sendMessage = () => {
     if (inputMessage.trim() !== "" && channel) {
       const newMessage = {
@@ -257,6 +316,8 @@ export default function Room({ params }: { params: { roomId: string } }) {
         isSharingScreen={isSharingScreen}
         toggleMic={toggleMic}
         toggleCamera={toggleCamera}
+        startScreenShare={startScreenShare}
+        stopScreenShare={stopScreenShare}
         exitCall={exitCall}
       />
       <button
