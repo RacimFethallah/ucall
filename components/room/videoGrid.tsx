@@ -1,15 +1,14 @@
-import React from "react";
-
-
+import React, { RefObject } from "react";
 
 interface VideoGridProps {
   isSharingScreen: boolean;
-
-  user: string | null;
+  videoRef: RefObject<HTMLVideoElement>;
+  user: string;
 }
 
 export default function VideoGrid({
   isSharingScreen,
+  videoRef,
   user,
 }: VideoGridProps) {
   return (
@@ -24,9 +23,16 @@ export default function VideoGrid({
       >
         {!isSharingScreen && (
           <span className="text-lg text-black bg-white rounded-lg px-5 py-2">
-            {user ? user : "You"}
+            {user} (You)
           </span>
         )}
+        <video
+          ref={videoRef}
+          muted
+          className={`rounded-lg ${
+            isSharingScreen ? "w-full" : "w-64 h-48"
+          } object-cover`}
+        />
       </div>
     </div>
   );

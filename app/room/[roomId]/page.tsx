@@ -5,17 +5,21 @@ import { RealtimeChannel } from "@supabase/supabase-js";
 import { MdChat } from "react-icons/md";
 import Link from "next/link";
 import { redirect, useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
 import ChatWindow from "@/components/room/chatWindow";
 import VideoGrid from "@/components/room/videoGrid";
 import ControlBar from "@/components/room/ControlBar";
+import Peer, { MediaConnection } from "peerjs";
 
 export default function Room({ params }: { params: { roomId: string } }) {
   const [userCount, setUserCount] = useState(1);
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
 
   const router = useRouter();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const peersRef = useRef<{ [id: string]: MediaConnection }>({});
+  const videoElementsRef = useRef<{ [id: string]: HTMLDivElement }>({});
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(false);
@@ -31,8 +35,10 @@ export default function Room({ params }: { params: { roomId: string } }) {
   const supabase = createClient();
 
   useEffect(() => {
+    const peer = new Peer();
+    let localStream: MediaStream;
 
-    const setupChannel = async () => {
+    const setupRoom = async () => {
       const {
         data: { user },
         error,
@@ -58,7 +64,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
 
       roomChannel
         .on("presence", { event: "sync" }, () => {
-          const newState = roomChannel!.presenceState();
+          const newState = roomChannel.presenceState();
           const usersInRoom = Object.entries(newState).map(([key, value]) => ({
             key,
             name: (value as any)[0]?.name || "Anonymous",
@@ -69,34 +75,122 @@ export default function Room({ params }: { params: { roomId: string } }) {
           const newUser = {
             key,
             name: (newPresences as any)[0]?.name || "Anonymous",
+            peerId: (newPresences as any)[0]?.peerId,
           };
           toast.success(`${newUser.name} joined the room`);
-          setUserCount((prev) => prev + 1);
+          if (localStream && newUser.peerId !== peer.id) {
+            connectToNewUser(newUser.peerId, newUser.name, peer, localStream);
+          }
         })
         .on("presence", { event: "leave" }, ({ key }) => {
-          setUserCount((prev) => prev - 1);
+          if (peersRef.current[key]) {
+            peersRef.current[key].close();
+          }
+          if (videoElementsRef.current[key]) {
+            videoElementsRef.current[key].remove();
+            delete videoElementsRef.current[key];
+          }
+          toast.info(`A user left the room`);
         })
         .on("broadcast", { event: "message" }, ({ payload }) => {
           setMessages((prevMessages) => [...prevMessages, payload]);
-        })
-        .subscribe(async (status) => {
-          if (status === "SUBSCRIBED") {
-            await roomChannel.track({
-              online_at: new Date().toISOString(),
-              name: username,
-            });
-          }
         });
 
       setChannel(roomChannel);
 
-      return () => {
-        roomChannel.unsubscribe();
-      };
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: true,
+        });
+        setStream(localStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = localStream;
+          videoRef.current.play();
+        }
+
+        peer.on("call", (call) => {
+          call.answer(localStream);
+          call.on("stream", (userVideoStream) => {
+            addVideoStream(userVideoStream, call.peer, "Remote User");
+          });
+        });
+
+        peer.on("open", (peerId) => {
+          roomChannel.track({
+            online_at: new Date().toISOString(),
+            name: username,
+            peerId: peerId,
+          });
+        });
+
+        await roomChannel.subscribe();
+      } catch (err) {
+        console.error("Failed to get local stream", err);
+      }
     };
 
-    setupChannel();
+    setupRoom();
+
+    return () => {
+      if (localStream) localStream.getTracks().forEach((track) => track.stop());
+      peer.destroy();
+      channel?.unsubscribe();
+    };
   }, [params.roomId]);
+
+  const connectToNewUser = (
+    userId: string,
+    username: string,
+    peer: Peer,
+    stream: MediaStream
+  ) => {
+    const call = peer.call(userId, stream);
+    call.on("stream", (userVideoStream) => {
+      addVideoStream(userVideoStream, userId, username);
+    });
+
+    call.on("close", () => {
+      if (videoElementsRef.current[userId]) {
+        videoElementsRef.current[userId].remove();
+        delete videoElementsRef.current[userId];
+      }
+      if (peersRef.current[userId]) {
+        delete peersRef.current[userId];
+      }
+    });
+
+    peersRef.current[userId] = call;
+  };
+
+  const addVideoStream = (
+    stream: MediaStream,
+    userId: string,
+    username: string
+  ) => {
+    if (videoElementsRef.current[userId]) {
+      return;
+    }
+
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    video.addEventListener("loadedmetadata", () => {
+      video.play();
+    });
+
+    const videoGrid = document.getElementById("video-grid");
+    const videoContainer = document.createElement("div");
+    videoContainer.id = "video-container";
+    videoContainer.className =
+      "video-container shadow-2xl bg-gray-700 border border-gray-300 p-3 rounded-xl flex flex-col justify-center items-center gap-2";
+    const span = document.createElement("span");
+    span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
+    span.innerText = username || "Remote User";
+    videoContainer.append(span);
+    videoContainer.append(video);
+    videoGrid?.append(videoContainer);
+    videoElementsRef.current[userId] = videoContainer;
+  };
 
   const toggleMic = () => {
     if (stream) {
@@ -152,7 +246,11 @@ export default function Room({ params }: { params: { roomId: string } }) {
       <h1 className="text-2xl mb-4">Room: {params.roomId}</h1>
       <p className="mb-4">People in room: {userCount}</p>
 
-      <VideoGrid isSharingScreen={isSharingScreen} user={"you"} />
+      <VideoGrid
+        isSharingScreen={isSharingScreen}
+        videoRef={videoRef}
+        user={username}
+      />
       <ControlBar
         micEnabled={micEnabled}
         cameraEnabled={cameraEnabled}
