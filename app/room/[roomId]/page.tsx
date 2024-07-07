@@ -93,6 +93,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
           toast.info(`A user left the room`);
         })
         .on("broadcast", { event: "message" }, ({ payload }) => {
+          toast.info(`New message from ${payload.userId}`)
           setMessages((prevMessages) => [...prevMessages, payload]);
         });
 
@@ -100,7 +101,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+          video: false,
           audio: true,
         });
         setStream(localStream);
@@ -116,7 +117,8 @@ export default function Room({ params }: { params: { roomId: string } }) {
         peer.on("call", (call) => {
           call.answer(localStream);
           call.on("stream", (userVideoStream) => {
-            addVideoStream(userVideoStream, call.peer, "Remote User");
+            const remoteUsername = call.metadata?.username || "Remote User";
+            addVideoStream(userVideoStream, call.peer, remoteUsername);
           });
         });
 
@@ -149,7 +151,9 @@ export default function Room({ params }: { params: { roomId: string } }) {
     peer: Peer,
     stream: MediaStream
   ) => {
-    const call = peer.call(userId, stream);
+    const call = peer.call(userId, stream, {
+      metadata: { username: username },
+    });
     call.on("stream", (userVideoStream) => {
       addVideoStream(userVideoStream, userId, username);
     });
@@ -218,7 +222,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
     }
-    router.push("/");
+    router.replace("/");
   };
 
   const toggleChat = () => {
