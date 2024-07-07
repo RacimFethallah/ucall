@@ -1,13 +1,40 @@
 import React from "react";
 
-export default function ChatWindow({ messages, inputMessage, setInputMessage, sendMessage }: any) {
+interface ChatWindowProps {
+  messages: Array<{ userId: string; text: string }>;
+  inputMessage: string;
+  setInputMessage: (message: string) => void;
+  sendMessage: () => void;
+  currentUser: string;
+}
+
+export default function ChatWindow({
+  messages,
+  inputMessage,
+  setInputMessage,
+  sendMessage,
+  currentUser,
+}: ChatWindowProps) {
   return (
     <div className="fixed top-16 right-4 w-80 h-3/4 bg-white shadow-lg rounded-lg flex flex-col">
       <div className="flex-1 p-4 overflow-y-auto">
-        {messages.map((msg: any , index: number) => (
-          <div key={index} className="mb-2">
-            <span className="font-bold">{msg.userId}: </span>
-            <span>{msg.text}</span>
+        {messages.map((msg, index) => (
+          <div
+            key={index}
+            className={`mb-2 ${
+              msg.userId === currentUser ? "text-right" : "text-left"
+            }`}
+          >
+            <span
+              className={`inline-block p-2 rounded-lg ${
+                msg.userId === currentUser
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-200 text-black"
+              }`}
+            >
+              <span className="font-bold">{msg.userId}: </span>
+              <span>{msg.text}</span>
+            </span>
           </div>
         ))}
       </div>

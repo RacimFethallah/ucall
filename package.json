@@ -8,6 +8,7 @@
   "dependencies": {
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
+    "@types/peerjs": "^1.1.0",
     "autoprefixer": "10.4.17",
     "geist": "^1.2.1",
     "next": "latest",
@@ -24,6 +25,7 @@
     "@types/node": "20.11.5",
     "@types/react": "18.2.48",
     "@types/react-dom": "18.2.18",
+    "@types/webrtc": "^0.0.43",
     "encoding": "^0.1.13"
   }
 }
