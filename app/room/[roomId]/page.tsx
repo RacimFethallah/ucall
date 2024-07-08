@@ -93,8 +93,16 @@ export default function Room({ params }: { params: { roomId: string } }) {
           toast.info(`A user left the room`);
         })
         .on("broadcast", { event: "message" }, ({ payload }) => {
-          toast.info(`New message from ${payload.userId}`)
+          toast.info(`New message from ${payload.userId}`);
           setMessages((prevMessages) => [...prevMessages, payload]);
+        })
+        .subscribe(async (status) => {
+          if (status === "SUBSCRIBED") {
+            await roomChannel.track({
+              online_at: new Date().toISOString(),
+              name: username,
+            });
+          }
         });
 
       setChannel(roomChannel);
@@ -130,7 +138,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
           });
         });
 
-        await roomChannel.subscribe();
+        // await roomChannel.subscribe();
       } catch (err) {
         console.error("Failed to get local stream", err);
       }
@@ -307,7 +315,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
     <div className="flex flex-col justify-center items-center p-10 gap-10 w-full">
       <Toaster />
       <h1 className="text-2xl mb-4">Room: {params.roomId}</h1>
-      <p className="mb-4">People in room: {userCount}</p>
+ {/* <p className="mb-4">People in room: {userCount}</p> */}
 
       <VideoGrid
         isSharingScreen={isSharingScreen}
