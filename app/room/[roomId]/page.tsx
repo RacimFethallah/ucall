@@ -227,6 +227,8 @@ export default function Room({ params }: { params: { roomId: string } }) {
     console.log("stream:", stream);
     const video = document.createElement("video");
     video.srcObject = stream;
+    console.log(userId);
+    video.muted = userId === "local";
     video.addEventListener("loadedmetadata", () => {
       video.play();
     });
