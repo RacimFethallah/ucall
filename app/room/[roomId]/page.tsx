@@ -205,10 +205,10 @@ export default function Room({ params }: { params: { roomId: string } }) {
     videoContainer.id = "video-container";
     videoContainer.className =
       "video-container shadow-2xl bg-gray-700 border border-gray-300 p-3 rounded-xl flex flex-col justify-center items-center gap-2";
-    const span = document.createElement("span");
-    span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
-    span.innerText = username || "Remote User";
-    videoContainer.append(span);
+    // const span = document.createElement("span");
+    // span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
+    // span.innerText = username || "Remote User";
+    // videoContainer.append(span);
     videoContainer.append(video);
     videoGrid?.append(videoContainer);
     videoElementsRef.current[userId] = videoContainer;
@@ -232,9 +232,13 @@ export default function Room({ params }: { params: { roomId: string } }) {
     }
   };
 
-  const exitCall = () => {
+  const exitCall = async () => {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
+    }
+    if (channel) {
+      await channel.untrack();
+      channel.unsubscribe();
     }
     router.replace("/");
   };
@@ -321,7 +325,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
     <div className="flex flex-col justify-center items-center p-10 gap-10 w-full">
       <Toaster />
       <h1 className="text-2xl mb-4">Room: {params.roomId}</h1>
-      <p className="mb-4">People in room: {userCount}</p>
+      {/* <p className="mb-4">People in room: {userCount}</p> */}
 
       <VideoGrid
         isSharingScreen={isSharingScreen}
