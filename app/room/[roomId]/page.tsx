@@ -61,41 +61,6 @@ export default function Room({ params }: { params: { roomId: string } }) {
           },
         },
       });
-      console.log("roomChannel", roomChannel);
-
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-        setStream(localStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = localStream;
-          videoRef.current.play();
-        }
-
-        localStream
-          .getVideoTracks()
-          .forEach((track) => (track.enabled = false));
-
-        peer.on("call", (call) => {
-          call.answer(localStream);
-          call.on("stream", (userVideoStream) => {
-            const remoteUsername = call.metadata?.username || "Remote User";
-            addVideoStream(userVideoStream, call.peer, remoteUsername);
-          });
-        });
-
-        peer.on("open", (peerId) => {
-          roomChannel.track({
-            online_at: new Date().toISOString(),
-            name: username,
-            peerId: peerId,
-          });
-        });
-      } catch (err) {
-        console.error("Failed to get local stream", err);
-      }
 
       roomChannel
         .on("presence", { event: "sync" }, () => {
@@ -130,17 +95,44 @@ export default function Room({ params }: { params: { roomId: string } }) {
         .on("broadcast", { event: "message" }, ({ payload }) => {
           toast.info(`New message from ${payload.userId}`);
           setMessages((prevMessages) => [...prevMessages, payload]);
-        })
-        .subscribe(async (status) => {
-          if (status === "SUBSCRIBED") {
-            await roomChannel.track({
-              online_at: new Date().toISOString(),
-              name: username,
-            });
-          }
         });
 
       setChannel(roomChannel);
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        setStream(localStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = localStream;
+          videoRef.current.play();
+        }
+
+        localStream
+          .getVideoTracks()
+          .forEach((track) => (track.enabled = false));
+
+        peer.on("call", (call) => {
+          call.answer(localStream);
+          call.on("stream", (userVideoStream) => {
+            addVideoStream(userVideoStream, call.peer, "Remote User");
+          });
+        });
+
+        peer.on("open", (peerId) => {
+          roomChannel.track({
+            online_at: new Date().toISOString(),
+            name: username,
+            peerId: peerId,
+          });
+        });
+
+        await roomChannel.subscribe();
+      } catch (err) {
+        console.error("Failed to get local stream", err);
+      }
     };
 
     setupRoom();
@@ -158,11 +150,8 @@ export default function Room({ params }: { params: { roomId: string } }) {
     peer: Peer,
     stream: MediaStream
   ) => {
-    const call = peer.call(userId, stream, {
-      metadata: { username: username },
-    });
+    const call = peer.call(userId, stream);
     call.on("stream", (userVideoStream) => {
-      console.log("userVideoStream", userVideoStream);
       addVideoStream(userVideoStream, userId, username);
     });
 
@@ -230,7 +219,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
     }
-    router.replace("/");
+    router.push("/");
   };
 
   const toggleChat = () => {
