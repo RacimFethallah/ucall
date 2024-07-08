@@ -13,7 +13,7 @@ export default function VideoGrid({
 }: VideoGridProps) {
   return (
     <div id="video-grid" className="video-grid">
-      <div
+      {/* <div
         id="video-container"
         className={
           isSharingScreen
@@ -34,7 +34,7 @@ export default function VideoGrid({
             isSharingScreen ? "w-full" : ""
           } object-cover`}
         />
-      </div>
+      </div> */}
     </div>
   );
 }

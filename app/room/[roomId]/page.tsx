@@ -99,53 +99,68 @@ export default function Room({ params }: { params: { roomId: string } }) {
           console.log("New message:", payload);
           toast.info(`New message from ${payload.userId}`);
           setMessages((prevMessages) => [...prevMessages, payload]);
+        })
+        .on("broadcast", { event: "user_ready" }, ({ payload }) => {
+          if (localStream && payload.peerId !== peer.id) {
+            connectToNewUser(
+              payload.peerId,
+              payload.username,
+              peer,
+              localStream
+            );
+          }
         });
 
       setChannel(roomChannel);
 
-      try {
-        console.log("Requesting local stream...");
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
+      await roomChannel.subscribe();
+
+      peer.on("open", async (peerId) => {
+        console.log("Peer connection open with ID:", peerId);
+        await roomChannel.track({
+          online_at: new Date().toISOString(),
+          name: username,
+          peerId: peerId,
         });
-        console.log("Local stream obtained:", localStream);
-        setStream(localStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = localStream;
-          videoRef.current.play();
+
+        // After joining, set up the local stream
+        try {
+          console.log("Requesting local stream...");
+          localStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+          console.log("Local stream obtained:", localStream);
+          setStream(localStream);
+          addLocalVideoStream(localStream, username);
+
+          localStream
+            .getVideoTracks()
+            .forEach((track) => (track.enabled = false));
+
+          // Notify other users that you're ready
+          roomChannel.send({
+            type: "broadcast",
+            event: "user_ready",
+            payload: { peerId, username },
+          });
+
+          peer.on("call", (call) => {
+            console.log("Receiving call from", call.peer);
+            call.answer(localStream);
+            call.on("stream", (userVideoStream) => {
+              console.log("Received remote stream from", call.peer);
+              const remoteUsername = call.metadata?.username || "Remote User";
+              addVideoStream(userVideoStream, call.peer, remoteUsername);
+            });
+            call.on("error", (err) => {
+              console.error("Call error:", err);
+            });
+          });
+        } catch (err) {
+          console.error("Failed to get local stream", err);
         }
-
-        localStream
-          .getVideoTracks()
-          .forEach((track) => (track.enabled = false));
-
-        peer.on("call", (call) => {
-          console.log("Receiving call from", call.peer);
-          call.answer(localStream);
-          call.on("stream", (userVideoStream) => {
-            console.log("Received remote stream from", call.peer);
-            const remoteUsername = call.metadata?.username || "Remote User";
-            addVideoStream(userVideoStream, call.peer, remoteUsername);
-          });
-          call.on("error", (err) => {
-            console.error("Call error:", err);
-          });
-        });
-
-        peer.on("open", (peerId) => {
-          console.log("Peer connection open with ID:", peerId);
-          roomChannel.track({
-            online_at: new Date().toISOString(),
-            name: username,
-            peerId: peerId,
-          });
-        });
-
-        await roomChannel.subscribe();
-      } catch (err) {
-        console.error("Failed to get local stream", err);
-      }
+      });
     };
 
     setupRoom();
@@ -156,6 +171,15 @@ export default function Room({ params }: { params: { roomId: string } }) {
       channel?.unsubscribe();
     };
   }, [params.roomId]);
+
+  const addLocalVideoStream = (stream: MediaStream, username: string) => {
+    console.log("Adding local video stream");
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play();
+    }
+    addVideoStream(stream, "local", username);
+  };
 
   const connectToNewUser = (
     userId: string,
@@ -325,7 +349,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
     <div className="flex flex-col justify-center items-center p-10 gap-10 w-full">
       <Toaster />
       <h1 className="text-2xl mb-4">Room: {params.roomId}</h1>
-      {/* <p className="mb-4">People in room: {userCount}</p> */}
+      <p className="mb-4">People in room: {userCount}</p>
 
       <VideoGrid
         isSharingScreen={isSharingScreen}
