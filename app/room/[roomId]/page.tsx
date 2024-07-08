@@ -88,11 +88,10 @@ export default function Room({ params }: { params: { roomId: string } }) {
           console.log("User left:", key);
           if (peersRef.current[key]) {
             peersRef.current[key].close();
+            delete peersRef.current[key];
           }
-          if (videoElementsRef.current[key]) {
-            videoElementsRef.current[key].remove();
-            delete videoElementsRef.current[key];
-          }
+          removeVideoElement(key);
+
           toast.info(`A user left the room`);
         })
         .on("broadcast", { event: "message" }, ({ payload }) => {
@@ -127,7 +126,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
         try {
           console.log("Requesting local stream...");
           localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: false,
             audio: true,
           });
           console.log("Local stream obtained:", localStream);
@@ -171,6 +170,14 @@ export default function Room({ params }: { params: { roomId: string } }) {
       channel?.unsubscribe();
     };
   }, [params.roomId]);
+
+  //to remove a video element
+  const removeVideoElement = (userId: string) => {
+    if (videoElementsRef.current[userId]) {
+      videoElementsRef.current[userId].remove();
+      delete videoElementsRef.current[userId];
+    }
+  };
 
   const addLocalVideoStream = (stream: MediaStream, username: string) => {
     console.log("Adding local video stream");
@@ -229,10 +236,6 @@ export default function Room({ params }: { params: { roomId: string } }) {
     videoContainer.id = "video-container";
     videoContainer.className =
       "video-container shadow-2xl bg-gray-700 border border-gray-300 p-3 rounded-xl flex flex-col justify-center items-center gap-2";
-    // const span = document.createElement("span");
-    // span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
-    // span.innerText = username || "Remote User";
-    // videoContainer.append(span);
     videoContainer.append(video);
     videoGrid?.append(videoContainer);
     videoElementsRef.current[userId] = videoContainer;
@@ -271,59 +274,80 @@ export default function Room({ params }: { params: { roomId: string } }) {
     setIsChatOpen(!isChatOpen);
   };
 
-  const startScreenShare = () => {
-    navigator.mediaDevices
-      .getDisplayMedia({ video: true })
-      .then((screenStream) => {
-        setIsSharingScreen(true);
-        if (videoRef.current) {
-          videoRef.current.srcObject = screenStream;
-          videoRef.current.play();
-        }
-        setStream(screenStream);
-
-        const videoTrack = screenStream.getVideoTracks()[0];
-        videoTrack.onended = () => {
-          stopScreenShare();
-        };
-
-        for (let userId in peersRef.current) {
-          const call = peersRef.current[userId];
-          const sender = call.peerConnection
-            .getSenders()
-            .find((s) => s.track?.kind === "video");
-          if (sender) {
-            sender.replaceTrack(videoTrack);
-          }
-        }
+  const startScreenShare = async () => {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
       });
+      setIsSharingScreen(true);
+
+      const videoTrack = screenStream.getVideoTracks()[0];
+      videoTrack.onended = stopScreenShare;
+
+      if (stream) {
+        const sender = peersRef.current[
+          Object.keys(peersRef.current)[0]
+        ]?.peerConnection
+          .getSenders()
+          .find((s) => s.track?.kind === "video");
+
+        if (sender) {
+          sender.replaceTrack(videoTrack);
+        }
+
+        // Replace the video track in the local stream
+        const oldVideoTrack = stream.getVideoTracks()[0];
+        stream.removeTrack(oldVideoTrack);
+        stream.addTrack(videoTrack);
+      }
+
+      // Update local video
+      if (videoRef.current) {
+        videoRef.current.srcObject = screenStream;
+      }
+
+      setStream(screenStream);
+    } catch (error) {
+      console.error("Error starting screen share:", error);
+    }
   };
 
-  const stopScreenShare = () => {
-    navigator.mediaDevices
-      .getUserMedia({
+  const stopScreenShare = async () => {
+    try {
+      setIsSharingScreen(false);
+      const webcamStream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
-      })
-      .then((webcamStream) => {
-        setIsSharingScreen(false);
-        if (videoRef.current) {
-          videoRef.current.srcObject = webcamStream;
-          videoRef.current.play();
-        }
-        setStream(webcamStream);
-
-        const videoTrack = webcamStream.getVideoTracks()[0];
-        for (let userId in peersRef.current) {
-          const call = peersRef.current[userId];
-          const sender = call.peerConnection
-            .getSenders()
-            .find((s) => s.track?.kind === "video");
-          if (sender) {
-            sender.replaceTrack(videoTrack);
-          }
-        }
       });
+
+      const videoTrack = webcamStream.getVideoTracks()[0];
+
+      if (stream) {
+        const sender = peersRef.current[
+          Object.keys(peersRef.current)[0]
+        ]?.peerConnection
+          .getSenders()
+          .find((s) => s.track?.kind === "video");
+
+        if (sender) {
+          sender.replaceTrack(videoTrack);
+        }
+
+        // Replace the video track in the local stream
+        const oldVideoTrack = stream.getVideoTracks()[0];
+        stream.removeTrack(oldVideoTrack);
+        stream.addTrack(videoTrack);
+      }
+
+      // Update local video
+      if (videoRef.current) {
+        videoRef.current.srcObject = webcamStream;
+      }
+
+      setStream(webcamStream);
+    } catch (error) {
+      console.error("Error stopping screen share:", error);
+    }
   };
 
   const sendMessage = () => {
