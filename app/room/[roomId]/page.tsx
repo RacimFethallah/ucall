@@ -117,7 +117,8 @@ export default function Room({ params }: { params: { roomId: string } }) {
         peer.on("call", (call) => {
           call.answer(localStream);
           call.on("stream", (userVideoStream) => {
-            addVideoStream(userVideoStream, call.peer, "Remote User");
+            const remoteUsername = call.metadata?.username || "Remote User";
+            addVideoStream(userVideoStream, call.peer, remoteUsername);
           });
         });
 
@@ -150,7 +151,9 @@ export default function Room({ params }: { params: { roomId: string } }) {
     peer: Peer,
     stream: MediaStream
   ) => {
-    const call = peer.call(userId, stream);
+    const call = peer.call(userId, stream, {
+      metadata: { username: username },
+    });
     call.on("stream", (userVideoStream) => {
       addVideoStream(userVideoStream, userId, username);
     });
@@ -188,10 +191,10 @@ export default function Room({ params }: { params: { roomId: string } }) {
     videoContainer.id = "video-container";
     videoContainer.className =
       "video-container shadow-2xl bg-gray-700 border border-gray-300 p-3 rounded-xl flex flex-col justify-center items-center gap-2";
-    // const span = document.createElement("span");
-    // span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
-    // span.innerText = username || "Remote User";
-    // videoContainer.append(span);
+    const span = document.createElement("span");
+    span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
+    span.innerText = username || "Remote User";
+    videoContainer.append(span);
     videoContainer.append(video);
     videoGrid?.append(videoContainer);
     videoElementsRef.current[userId] = videoContainer;
@@ -219,7 +222,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
     }
-    router.push("/");
+    router.replace("/");
   };
 
   const toggleChat = () => {
