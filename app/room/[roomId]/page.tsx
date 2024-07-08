@@ -69,6 +69,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
             key,
             name: (value as any)[0]?.name || "Anonymous",
           }));
+          console.log("Presence sync:", usersInRoom);
           setUserCount(usersInRoom.length);
         })
         .on("presence", { event: "join" }, ({ key, newPresences }) => {
@@ -77,12 +78,14 @@ export default function Room({ params }: { params: { roomId: string } }) {
             name: (newPresences as any)[0]?.name || "Anonymous",
             peerId: (newPresences as any)[0]?.peerId,
           };
+          console.log("User joined:", newUser);
           toast.success(`${newUser.name} joined the room`);
           if (localStream && newUser.peerId !== peer.id) {
             connectToNewUser(newUser.peerId, newUser.name, peer, localStream);
           }
         })
         .on("presence", { event: "leave" }, ({ key }) => {
+          console.log("User left:", key);
           if (peersRef.current[key]) {
             peersRef.current[key].close();
           }
@@ -93,6 +96,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
           toast.info(`A user left the room`);
         })
         .on("broadcast", { event: "message" }, ({ payload }) => {
+          console.log("New message:", payload);
           toast.info(`New message from ${payload.userId}`);
           setMessages((prevMessages) => [...prevMessages, payload]);
         });
@@ -100,10 +104,12 @@ export default function Room({ params }: { params: { roomId: string } }) {
       setChannel(roomChannel);
 
       try {
+        console.log("Requesting local stream...");
         localStream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true,
         });
+        console.log("Local stream obtained:", localStream);
         setStream(localStream);
         if (videoRef.current) {
           videoRef.current.srcObject = localStream;
@@ -115,14 +121,20 @@ export default function Room({ params }: { params: { roomId: string } }) {
           .forEach((track) => (track.enabled = false));
 
         peer.on("call", (call) => {
+          console.log("Receiving call from", call.peer);
           call.answer(localStream);
           call.on("stream", (userVideoStream) => {
+            console.log("Received remote stream from", call.peer);
             const remoteUsername = call.metadata?.username || "Remote User";
             addVideoStream(userVideoStream, call.peer, remoteUsername);
+          });
+          call.on("error", (err) => {
+            console.error("Call error:", err);
           });
         });
 
         peer.on("open", (peerId) => {
+          console.log("Peer connection open with ID:", peerId);
           roomChannel.track({
             online_at: new Date().toISOString(),
             name: username,
@@ -181,7 +193,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
     }
 
     // if(stream.getVideoTracks().length !== 0) {}
-    console.log("stream:", stream)
+    console.log("stream:", stream);
     const video = document.createElement("video");
     video.srcObject = stream;
     video.addEventListener("loadedmetadata", () => {
