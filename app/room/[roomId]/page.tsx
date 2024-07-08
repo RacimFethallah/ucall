@@ -126,7 +126,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
         try {
           console.log("Requesting local stream...");
           localStream = await navigator.mediaDevices.getUserMedia({
-            video: false,
+            video: true,
             audio: true,
           });
           console.log("Local stream obtained:", localStream);
