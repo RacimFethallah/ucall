@@ -22,8 +22,7 @@ export default function VideoGrid({
         }
       >
         {!isSharingScreen && (
-          <>
-          </>
+          <></>
           // <span className="text-lg text-black bg-white rounded-lg px-5 py-2">
           //   {user} (You)
           // </span>

@@ -93,7 +93,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
           toast.info(`A user left the room`);
         })
         .on("broadcast", { event: "message" }, ({ payload }) => {
-          toast.info(`New message from ${payload.userId}`)
+          toast.info(`New message from ${payload.userId}`);
           setMessages((prevMessages) => [...prevMessages, payload]);
         });
 
@@ -130,7 +130,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
           });
         });
 
-        roomChannel.subscribe();
+        await roomChannel.subscribe();
       } catch (err) {
         console.error("Failed to get local stream", err);
       }
@@ -191,10 +191,10 @@ export default function Room({ params }: { params: { roomId: string } }) {
     videoContainer.id = "video-container";
     videoContainer.className =
       "video-container shadow-2xl bg-gray-700 border border-gray-300 p-3 rounded-xl flex flex-col justify-center items-center gap-2";
-    // const span = document.createElement("span");
-    // span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
-    // span.innerText = username || "Remote User";
-    // videoContainer.append(span);
+    const span = document.createElement("span");
+    span.className = "text-lg text-black bg-white rounded-lg px-5 py-2";
+    span.innerText = username || "Remote User";
+    videoContainer.append(span);
     videoContainer.append(video);
     videoGrid?.append(videoContainer);
     videoElementsRef.current[userId] = videoContainer;
