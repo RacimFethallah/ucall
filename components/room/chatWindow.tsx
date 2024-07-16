@@ -47,6 +47,9 @@ export default function ChatWindow({
           placeholder="Type a message..."
         />
         <button
+          onKeyDown={(e) => {
+            if (e.key === "Enter") sendMessage();
+          }}
           onClick={sendMessage}
           className="mt-2 w-full bg-blue-500 text-white py-1 rounded"
         >
