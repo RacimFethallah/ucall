@@ -32,8 +32,6 @@
   }
 }
 
-
-
 .floating-bottom-bar {
   position: fixed;
   bottom: 35%;
@@ -78,7 +76,7 @@
 .video-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-  gap: 20px;
+  gap: 10px;
   justify-items: center;
   width: 100%;
 }

@@ -372,7 +372,7 @@ export default function Room({ params }: { params: { roomId: string } }) {
   };
 
   return (
-    <div className="flex flex-col justify-center items-center p-10 gap-10 w-full">
+    <div className="flex flex-col justify-center items-center p-5 gap-10 w-full">
       <Toaster />
       <h1 className="text-2xl mb-4">Room: {params.roomId}</h1>
       <p className="mb-4">People in room: {userCount}</p>
