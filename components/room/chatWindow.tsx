@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useEffect, useRef } from "react";
 
 interface ChatWindowProps {
   messages: Array<{ userId: string; text: string }>;
@@ -15,6 +17,16 @@ export default function ChatWindow({
   sendMessage,
   currentUser,
 }: ChatWindowProps) {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
   return (
     <div className="fixed top-16 right-4 w-80 h-3/4 bg-white shadow-lg rounded-lg flex flex-col">
       <div className="flex-1 p-4 overflow-y-auto">
@@ -37,6 +49,7 @@ export default function ChatWindow({
             </span>
           </div>
         ))}
+        <div ref={messagesEndRef} />
       </div>
       <div className="p-4 border-t">
         <input
